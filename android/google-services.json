@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "252296205232",
+    "project_id": "arewa-health",
+    "storage_bucket": "arewa-health.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:252296205232:android:dcf69dd923649f20ecbc75",
+        "android_client_info": {
+          "package_name": "com.arewanetventures"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBrwjOv2lWNUZMusqRFKyD8sP8vL3hDCl8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
