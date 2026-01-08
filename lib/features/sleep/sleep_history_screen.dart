@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'sleep_service.dart'; // Ensure this points to your SleepService file
+import 'package:provider/provider.dart';
+import 'sleep_service.dart';
 
 class SleepHistoryScreen extends StatelessWidget {
   const SleepHistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final SleepService sleepService = SleepService();
+    final sleepService = context.read<SleepService>();
 
     return Scaffold(
       appBar: AppBar(

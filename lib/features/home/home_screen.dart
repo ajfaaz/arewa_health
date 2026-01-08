@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/providers/language_provider.dart';
 import '../profile/profile_service.dart';
+import '../sleep/sleep_service.dart';
+import '../sleep/sleep_status_card.dart';
 import '../sleep/sleep_screen.dart';
 import '../sleep/sleep_history_screen.dart';
 import '../bp/bp_screen.dart';
@@ -34,6 +36,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadLang();
+    // Initialize SleepService to load active sleep status
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<SleepService>().init();
+    });
   }
 
   Future<void> _loadLang() async {
@@ -113,14 +119,38 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
+          // Active Sleep Status Card
+          if (uid != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Consumer<SleepService>(
+                builder: (context, sleepService, child) => SleepStatusCard(
+                  isSleeping: sleepService.isSleeping,
+                  startTime: sleepService.startTime,
+                  lastSleepDuration: sleepService.lastSleepDuration,
+                  onStart: sleepService.startSleep,
+                  onStop: sleepService.stopSleep,
+                ),
+              ),
+            ),
           if (uid != null)
             SizedBox(
               height: 250,
               child: StreamBuilder<List<WeeklyHealthData>>(
                 stream: WeeklyHealthService().last7Days(uid),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text("Error: ${snapshot.error}",
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red)),
+                    );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text("No chart data available"));
                   }
                   return WeeklyHealthChart(data: snapshot.data!);
                 },

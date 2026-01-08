@@ -6,6 +6,7 @@ import 'features/auth/auth_gate.dart';
 import 'package:provider/provider.dart';
 import 'core/providers/language_provider.dart';
 import 'features/notifications/notification_service.dart';
+import 'features/sleep/sleep_service.dart';
 
 
 void main() async {
@@ -16,8 +17,11 @@ void main() async {
   await NotificationService.init();
   setupHealthNotifications();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => LanguageProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => SleepService()),
+      ],
       child: const ArewaHealthApp(),
     ),
   );

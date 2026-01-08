@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/localization/app_strings.dart';
 import '../profile/profile_service.dart';
 import 'sleep_service.dart';
+import 'sleep_status_card.dart';
 
 class SleepScreen extends StatefulWidget {
   const SleepScreen({super.key});
@@ -13,13 +15,13 @@ class SleepScreen extends StatefulWidget {
 }
 
 class _SleepScreenState extends State<SleepScreen> {
-  final SleepService _sleepService = SleepService();
   String lang = 'en';
 
   @override
   void initState() {
     super.initState();
     _loadLang();
+    context.read<SleepService>().init();
   }
 
   Future<void> _loadLang() async {
@@ -32,100 +34,71 @@ class _SleepScreenState extends State<SleepScreen> {
     }
   }
 
-  bool sleeping = false;
-  bool loading = false;
-  String? activeSleepId;
-  DateTime? startTime;
-
-  Future<void> startSleep() async {
-    setState(() => loading = true);
-
-    final DocumentSnapshot result =
-    await _sleepService.startSleep();
-
-
-    setState(() {
-      activeSleepId = result.id;
-      startTime = (result['startTime'] as Timestamp).toDate();
-      sleeping = true;
-      loading = false;
-    });
-  }
-
-  Future<void> stopSleep() async {
-    if (activeSleepId == null || startTime == null) return;
-
-    setState(() => loading = true);
-
-    await _sleepService.stopSleep(activeSleepId!, Timestamp.fromDate(startTime!));
-
-    setState(() {
-      sleeping = false;
-      activeSleepId = null;
-      startTime = null;
-      loading = false;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    final sleepService = context.watch<SleepService>();
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.t("sleep", lang))),
-      body: Column(
-        children: [
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: activeSleepId == null
-                ? startSleep
-                : () async {
-                    await _sleepService.stopSleep(
-                        activeSleepId!, Timestamp.fromDate(startTime!));
+      body: StreamBuilder<QuerySnapshot>(
+        stream: sleepService.sleepHistory(),
+        builder: (context, snapshot) {
+          List<QueryDocumentSnapshot> docs = [];
 
-                    setState(() {
-                      activeSleepId = null;
-                      startTime = null;
-                    });
-                  },
-            child: Text(activeSleepId == null
-                ? AppStrings.t("start_sleep", lang)
-                : AppStrings.t("stop_sleep", lang)),
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _sleepService.sleepHistory(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+          if (snapshot.hasData) {
+            docs = snapshot.data!.docs;
+          }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text("No sleep records yet"));
-                }
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: SleepStatusCard(
+                  isSleeping: sleepService.isSleeping,
+                  startTime: sleepService.startTime,
+                  lastSleepDuration: sleepService.lastSleepDuration,
+                  onStart: sleepService.startSleep,
+                  onStop: sleepService.stopSleep,
+                ),
+              ),
+              Expanded(
+                child: docs.isEmpty
+                    ? const Center(child: Text("No sleep records yet"))
+                    : ListView.builder(
+                        itemCount: docs.length,
+                        itemBuilder: (_, index) {
+                          final data = docs[index].data() as Map<String, dynamic>;
+                          final start = (data['startTime'] as Timestamp).toDate();
+                          final duration = data['durationMinutes'] as int?;
 
-                final docs = snapshot.data!.docs;
+                          if (duration == null) {
+                            return ListTile(
+                              title: Text("Start: $start"),
+                              subtitle: const Text("Sleeping..."),
+                            );
+                          }
 
-                return ListView.builder(
-                  itemCount: docs.length,
-                  itemBuilder: (_, index) {
-                    final data = docs[index];
-                    final start = (data['startTime'] as Timestamp).toDate();
-                    final duration = data['durationMinutes'];
+                          final double hoursSlept = duration / 60.0;
+                          String sleepMessage;
 
-                    return ListTile(
-                      title: Text("Start: $start"),
-                      subtitle: Text(
-                        duration == null
-                            ? "Sleeping..."
-                            : "Duration: $duration minutes",
+                          if (hoursSlept < 6) {
+                            sleepMessage = "Poor sleep 😴 (less than 6 hours)";
+                          } else if (hoursSlept < 7) {
+                            sleepMessage = "Fair sleep 🙂";
+                          } else {
+                            sleepMessage = "Good sleep 🌙";
+                          }
+
+                          return ListTile(
+                            title: Text("Start: $start"),
+                            subtitle: Text(
+                                "Duration: $duration minutes\n$sleepMessage"),
+                          );
+                        },
                       ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
