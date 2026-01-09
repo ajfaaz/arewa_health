@@ -1,3 +1,4 @@
+import '../../core/insights/insight_engine.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -10,18 +11,22 @@ import '../sleep/sleep_status_card.dart';
 import '../sleep/sleep_screen.dart';
 import '../sleep/sleep_history_screen.dart';
 import '../bp/bp_screen.dart';
-import '../bp/bp_utils.dart';
+import '../../utils/bp_utils.dart';
+import '../../models/bp_category.dart';
 import '../bp/bp_history.dart';
 import '../ai_insights/insight_card.dart';
 import '../ai_insights/insight_service.dart';
 import '../ai_insights/health_score_engine.dart';
 import '../ai_insights/health_score_card.dart';
-import '../ai_insights/weekly_health_service.dart';
-import '../ai_insights/weekly_health_chart.dart';
-import '../ai_insights/weekly_health_model.dart';
 import '../insights/insight_service.dart' as legacy;
 import '../insights/alert_engine.dart';
 import '../meal/meal_screen.dart';
+import '../../models/bp_reading.dart';
+import '../../models/sleep_session.dart';
+import '../../widgets/health_insight_card.dart';
+import '../../models/health_trend.dart';
+import '../../widgets/health_trend_card.dart';
+import '../../widgets/health_recommendation_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -133,27 +138,133 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+          // Generate and show health insights (sleep + bp + profile)
           if (uid != null)
-            SizedBox(
-              height: 250,
-              child: StreamBuilder<List<WeeklyHealthData>>(
-                stream: WeeklyHealthService().last7Days(uid),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text("Error: ${snapshot.error}",
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.red)),
+            StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('profiles')
+                  .doc(uid)
+                  .snapshots(),
+              builder: (context, profileSnap) {
+                if (!profileSnap.hasData) return const SizedBox.shrink();
+
+                final profileData =
+                    profileSnap.data!.data() as Map<String, dynamic>?;
+                final bool isDiabetic = profileData?['diabetic'] ?? false;
+
+                return StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('bp')
+                      .where('uid', isEqualTo: uid)
+                      .orderBy('createdAt', descending: true)
+                      .limit(20)
+                      .snapshots(),
+                  builder: (context, bpSnap) {
+                    return StreamBuilder<QuerySnapshot>(
+                      stream: context.read<SleepService>().sleepHistory(),
+                      builder: (context, sleepSnap) {
+                        if (!bpSnap.hasData || !sleepSnap.hasData) {
+                          return const SizedBox.shrink();
+                        }
+
+                        final bpHistory = bpSnap.data!.docs.map((d) {
+                          final data = d.data() as Map<String, dynamic>;
+                          return BPReading(
+                            systolic: data['systolic'] as int,
+                            diastolic: data['diastolic'] as int,
+                            recordedAt: (data['createdAt'] as Timestamp).toDate(),
+                          );
+                        }).toList();
+
+                        final sleepHistory = sleepSnap.data!.docs.map((d) {
+                          final data = d.data() as Map<String, dynamic>;
+                          return SleepSession(
+                            startTime: (data['startTime'] as Timestamp).toDate(),
+                            endTime: data['endTime'] != null
+                                ? (data['endTime'] as Timestamp).toDate()
+                                : null,
+                          );
+                        }).toList();
+
+                        final avgSleepHours = sleepHistory.isNotEmpty
+                            ? sleepHistory.map((s) => s.hours).reduce((a, b) => a + b) / sleepHistory.length
+                            : 7.0;
+
+                        final latestBp = bpHistory.isNotEmpty ? bpHistory.first : null;
+
+                        final healthScore = InsightEngine.calculateScore(
+                          avgSleepHours: avgSleepHours,
+                          systolic: latestBp?.systolic ?? 120,
+                          diastolic: latestBp?.diastolic ?? 80,
+                          diabetic: isDiabetic,
+                        );
+
+                        final insights = InsightEngine.generate(
+                          sleep: sleepHistory,
+                          bp: bpHistory,
+                          isDiabetic: isDiabetic,
+                        );
+
+                        // Trend Analysis
+                        final now = DateTime.now();
+                        final sevenDaysAgo = now.subtract(const Duration(days: 7));
+                        final fourteenDaysAgo = now.subtract(const Duration(days: 14));
+
+                        final thisWeek = sleepHistory.where((s) => s.startTime.isAfter(sevenDaysAgo));
+                        final lastWeek = sleepHistory.where((s) => s.startTime.isAfter(fourteenDaysAgo) && s.startTime.isBefore(sevenDaysAgo));
+
+                        HealthTrend? sleepTrend;
+                        if (thisWeek.isNotEmpty && lastWeek.isNotEmpty) {
+                          final currentAvg = thisWeek.map((s) => s.hours).reduce((a, b) => a + b) / thisWeek.length;
+                          final prevAvg = lastWeek.map((s) => s.hours).reduce((a, b) => a + b) / lastWeek.length;
+                          
+                          sleepTrend = InsightEngine.analyzeTrend(
+                            previous: prevAvg,
+                            current: currentAvg,
+                            metric: "Sleep quality",
+                          );
+                        }
+
+                        final recommendations = InsightEngine.generateRecommendations(
+                          healthScore: healthScore.score,
+                          diabetic: isDiabetic,
+                          highBP: (latestBp?.systolic ?? 120) >= 130 || (latestBp?.diastolic ?? 80) >= 81,
+                        );
+
+                        if (insights.isEmpty && recommendations.isEmpty) return const SizedBox.shrink();
+
+                        return Column(
+                          children: [
+                            HealthScoreCard(healthScore: healthScore),
+                            const SizedBox(height: 12),
+                            if (sleepTrend != null) ...[
+                              HealthTrendCard(trend: sleepTrend),
+                              const SizedBox(height: 12),
+                            ],
+                            ...recommendations.map((r) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: HealthRecommendationCard(rec: r),
+                            )),
+                            ...insights.map((i) => HealthInsightCard(insight: i)).toList(),
+                          ],
+                        );
+                      },
                     );
-                  }
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text("No chart data available"));
-                  }
-                  return WeeklyHealthChart(data: snapshot.data!);
-                },
+                  },
+                );
+              },
+            ),
+          if (uid != null)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Card(
+                child: ListTile(
+                  leading: Icon(Icons.insights, color: Colors.deepPurple),
+                  title: Text("Sleep Insight", style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(
+                    "Sleeping less than 6 hours may increase blood pressure.",
+                  ),
+                ),
               ),
             ),
           if (uid != null)
@@ -182,14 +293,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       final data = bpSnap.data!.docs.first;
                       final sys = data['systolic'];
                       final dia = data['diastolic'];
+                      
+                      final category = classifyBP(sys, dia);
                       bpTitle = "$sys/$dia mmHg";
 
-                      final category = classifyBP(sys, dia);
-                      if (category.contains("High") ||
-                          category == "Hypertensive Crisis") {
+                      if (category != BpCategory.normal) {
                         highBP = true;
                       }
+
+                      // Critical BP Warning (Day 4)
+                      if (category == BpCategory.crisis) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+                            _showCriticalBPDialog(context);
+                          }
+                        });
+                      }
                     }
+
+                    final bpColorVal = highBP ? Colors.red.shade100 : Colors.green.shade100;
 
                     return GridView.count(
                       shrinkWrap: true,
@@ -221,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         _HomeCard(
                           title: bpTitle,
                           icon: Icons.favorite,
-                          color: Colors.red.shade100,
+                          color: bpColorVal,
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (_) => const BPScreen()),
@@ -257,6 +379,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
+        ],
+      ),
+    );
+  }
+
+  void _showCriticalBPDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text("Medical Alert", style: TextStyle(color: Colors.red)),
+        content: const Text(
+          "Your blood pressure is dangerously high.\n"
+          "Please seek medical care immediately."
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("I Understand")),
         ],
       ),
     );

@@ -1,7 +1,7 @@
 class HealthInsight {
   final String title;
   final String message;
-  final String type; // info | warning | success
+  final String type; // sleep, bp, diet
 
   HealthInsight({
     required this.title,

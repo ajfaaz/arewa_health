@@ -44,8 +44,8 @@ class SleepService extends ChangeNotifier {
 
     for (var doc in query.docs) {
       final data = doc.data() as Map<String, dynamic>;
-      if (data['durationMinutes'] != null) {
-        lastSleepDuration = Duration(minutes: data['durationMinutes'] as int);
+      if (data['durationSeconds'] != null) {
+        lastSleepDuration = Duration(seconds: data['durationSeconds'] as int);
         notifyListeners();
         return;
       }
@@ -58,7 +58,7 @@ class SleepService extends ChangeNotifier {
       'uid': _uid, // MUST add this for the query to work
       'startTime': Timestamp.fromDate(now),
       'endTime': null,
-      'durationMinutes': null,
+      'durationSeconds': null,
     });
 
     activeSleepId = docRef.id;
@@ -71,14 +71,14 @@ class SleepService extends ChangeNotifier {
 
     final docRef = _sleepRef.doc(activeSleepId);
     final endTime = DateTime.now();
-    final durationMinutes = endTime.difference(startTime!).inMinutes;
+    final durationSeconds = endTime.difference(startTime!).inSeconds;
 
     await docRef.update({
       'endTime': Timestamp.fromDate(endTime),
-      'durationMinutes': durationMinutes,
+      'durationSeconds': durationSeconds,
     });
 
-    lastSleepDuration = Duration(minutes: durationMinutes);
+    lastSleepDuration = Duration(seconds: durationSeconds);
     activeSleepId = null;
     startTime = null;
     notifyListeners();

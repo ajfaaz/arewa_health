@@ -1,14 +1,15 @@
 import 'insight_model.dart';
-import '../bp/bp_utils.dart';
+import '../../utils/bp_utils.dart';
+import '../../models/bp_category.dart';
 
 HealthInsight buildHealthInsight({
   required int systolic,
   required int diastolic,
   required double avgSleep,
 }) {
-  final bpStatus = classifyBP(systolic, diastolic);
+  final bpCategory = classifyBP(systolic, diastolic);
 
-  if (avgSleep < 6 && bpStatus.contains("High")) {
+  if (avgSleep < 6 && (bpCategory == BpCategory.stage1 || bpCategory == BpCategory.stage2 || bpCategory == BpCategory.crisis)) {
     return HealthInsight(
       title: "High BP Risk",
       message:
@@ -17,7 +18,7 @@ HealthInsight buildHealthInsight({
     );
   }
 
-  if (avgSleep >= 7 && bpStatus == "Normal") {
+  if (avgSleep >= 7 && bpCategory == BpCategory.normal) {
     return HealthInsight(
       title: "Healthy Pattern",
       message:

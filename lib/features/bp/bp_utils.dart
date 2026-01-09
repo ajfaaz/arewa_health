@@ -1,3 +1,5 @@
+import '../../models/bp_reading.dart';
+
 bool isCriticalRisk({
   required String bpCategory,
   required bool diabetic,
@@ -10,24 +12,12 @@ bool isCriticalRisk({
 }
 
 String classifyBP(int systolic, int diastolic) {
-  if (systolic > 180 || diastolic > 120) {
-    return "Hypertensive Crisis";
-  }
-
-  if (systolic >= 140 || diastolic >= 90) {
-    return "High BP (Stage 2)";
-  }
-
-  if ((systolic >= 130 && systolic <= 139) ||
-      (diastolic >= 80 && diastolic <= 89)) {
-    return "High BP (Stage 1)";
-  }
-
-  if (systolic >= 120 && systolic <= 129 && diastolic < 80) {
-    return "Elevated";
-  }
-
-  return "Normal";
+  final reading = BPReading(
+    systolic: systolic,
+    diastolic: diastolic,
+    recordedAt: DateTime.now(),
+  );
+  return reading.category;
 }
 
 class BpUtils {

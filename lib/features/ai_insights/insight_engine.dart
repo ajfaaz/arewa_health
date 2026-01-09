@@ -1,17 +1,20 @@
 import 'insight_model.dart';
+import '../../utils/bp_utils.dart';
+import '../../models/bp_category.dart';
 
 class InsightEngine {
   // ❤️ BP INSIGHTS
   static HealthInsight? bpInsight(int systolic, int diastolic) {
-    if (systolic >= 140 || diastolic >= 90) {
+    final category = classifyBP(systolic, diastolic);
+    
+    if (category == BpCategory.stage2 || category == BpCategory.crisis) {
       return HealthInsight(
         title: "High Blood Pressure",
         message: "Reduce salt intake and rest more today.",
         type: InsightType.warning,
       );
     }
-
-    if (systolic < 120 && diastolic < 80) {
+    if (category == BpCategory.normal) {
       return HealthInsight(
         title: "BP Normal",
         message: "Great job! Keep your healthy habits.",

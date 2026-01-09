@@ -6,6 +6,7 @@ import '../../core/localization/app_strings.dart';
 import '../profile/profile_service.dart';
 import 'sleep_service.dart';
 import 'sleep_status_card.dart';
+import '../../utils/sleep_utils.dart';
 
 class SleepScreen extends StatefulWidget {
   const SleepScreen({super.key});
@@ -68,30 +69,30 @@ class _SleepScreenState extends State<SleepScreen> {
                         itemBuilder: (_, index) {
                           final data = docs[index].data() as Map<String, dynamic>;
                           final start = (data['startTime'] as Timestamp).toDate();
-                          final duration = data['durationMinutes'] as int?;
+                          // Support both old (minutes) and new (seconds) data
+                          final durationSec = data['durationSeconds'] as int?;
+                          final durationMin = data['durationMinutes'] as int?;
+                          
+                          final seconds = durationSec ?? (durationMin != null ? durationMin * 60 : null);
 
-                          if (duration == null) {
+                          if (seconds == null) {
                             return ListTile(
                               title: Text("Start: $start"),
                               subtitle: const Text("Sleeping..."),
                             );
                           }
 
-                          final double hoursSlept = duration / 60.0;
-                          String sleepMessage;
-
-                          if (hoursSlept < 6) {
-                            sleepMessage = "Poor sleep 😴 (less than 6 hours)";
-                          } else if (hoursSlept < 7) {
-                            sleepMessage = "Fair sleep 🙂";
-                          } else {
-                            sleepMessage = "Good sleep 🌙";
-                          }
+                          final quality = sleepQualityFromSeconds(seconds);
+                          final sleepMessage = sleepQualityLabel(quality);
+                          final durationMinutes = (seconds / 60).round();
 
                           return ListTile(
                             title: Text("Start: $start"),
                             subtitle: Text(
-                                "Duration: $duration minutes\n$sleepMessage"),
+                                "Duration: $durationMinutes minutes\n$sleepMessage"),
+                            trailing: quality == SleepQuality.poor 
+                              ? const Icon(Icons.warning_amber_rounded, color: Colors.orange)
+                              : null,
                           );
                         },
                       ),

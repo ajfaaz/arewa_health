@@ -68,7 +68,11 @@ class SleepHistoryScreen extends StatelessWidget {
               // Mapping fields to match your SleepService.startSleep() keys
               final Timestamp? startTimestamp = data['startTime'] as Timestamp?;
               final DateTime startDate = startTimestamp?.toDate().toLocal() ?? DateTime.now();
-              final int? duration = data['durationMinutes'] as int?;
+              
+              // Support both old (minutes) and new (seconds) data
+              final int? durationSec = data['durationSeconds'] as int?;
+              final int? durationMin = data['durationMinutes'] as int?;
+              final int? duration = durationSec != null ? (durationSec / 60).round() : durationMin;
 
               // Format date: e.g., Jan 1, 10:30 PM
               final String formattedDate = DateFormat('MMM d, h:mm a').format(startDate);

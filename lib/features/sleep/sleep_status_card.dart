@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../utils/sleep_utils.dart';
 
 class SleepStatusCard extends StatefulWidget {
   final bool isSleeping;
@@ -104,7 +105,9 @@ class _SleepStatusCardState extends State<SleepStatusCard> {
                     : "No sleep data yet",
               ),
               const SizedBox(height: 8),
-              const Text("Quality: Good"),
+              if (widget.lastSleepDuration != null)
+                Text("Quality: ${sleepQualityLabel(sleepQualityFromSeconds(widget.lastSleepDuration!.inSeconds))}",
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,

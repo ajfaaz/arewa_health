@@ -13,7 +13,7 @@ class HealthScoreEngine {
 
     // ❤️ BP (40)
     if (systolic != null && diastolic != null) {
-      if (systolic < 120 && diastolic < 80) {
+      if (systolic <= 120 && diastolic <= 80) {
         score += 40;
         feedback.add("Blood pressure is excellent");
       } else if (systolic < 140) {
@@ -55,8 +55,10 @@ class HealthScoreEngine {
 
     return HealthScore(
       score: score.clamp(0, 100),
+      label: score >= 80
+          ? "Excellent"
+          : (score >= 60 ? "Moderate" : "High Risk"),
       message: feedback.join(". "),
     );
   }
 }
-
